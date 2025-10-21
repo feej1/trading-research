@@ -1,8 +1,8 @@
 import requests
 import pandas as pd
 import random
-import datetime
 import string
+
 
 def RandomKey(length: int) -> str:
     letters_and_digits = string.ascii_letters + string.digits
@@ -12,7 +12,7 @@ def RandomKey(length: int) -> str:
 def RandomIpAddress() -> str:
     return ".".join(str(random.randint(0, 255)) for _ in range(4))
 
-def getStockVolatility(timeSeriesData: pd.DataFrame, date: datetime.date, sampleSize: int, period: int) -> float:
+def getStockVolatility(timeSeriesData: pd.DataFrame, date: str, sampleSize: int, period: int) -> float:
     # Calculate daily returns
     if 'daily_return' not in timeSeriesData.columns:
         timeSeriesData = addDailyReturns(timeSeriesData)
@@ -30,7 +30,7 @@ def addDailyReturns(timeSeriesData: pd.DataFrame) -> pd.DataFrame:
     timeSeriesData['daily_return'] = timeSeriesData['daily_return'] * 100
     return timeSeriesData
 
-def getStockTimeSeriesDaily(tkr: str, dataBefore: datetime.date = None, dataAfter: datetime.date = None) -> pd.DataFrame:
+def getStockTimeSeriesDaily(tkr: str, dataBefore: str = None, dataAfter: str = None) -> pd.DataFrame:
     options = {
         "function": "TIME_SERIES_DAILY",
         "symbol": tkr,
@@ -47,9 +47,9 @@ def getStockTimeSeriesDaily(tkr: str, dataBefore: datetime.date = None, dataAfte
     print(f"Retrieved {len(df)} daily time series entries for {tkr}")
 
     if dataBefore is not None:
-        df = df[df.index < str(dataBefore)]
+        df = df[df.index < dataBefore]
     if dataAfter is not None:
-        df = df[df.index > str(dataAfter)]
+        df = df[df.index > dataAfter]
 
     return df
 
@@ -61,7 +61,7 @@ def makeApiRquest(options: dict, dataKey: str = "data") -> dict:
 
         api_key = RandomKey(16)
 
-        print(f'Making api request for {options["function"]} of {options["symbol"]}')
+        print(f'Making api request for {options["function"]}')
 
         url = f"https://www.alphavantage.co/query?apikey={api_key}"
 
@@ -84,7 +84,8 @@ def makeApiRquest(options: dict, dataKey: str = "data") -> dict:
         else: 
             # Deserialize the JSON response into a Python dictionary or list
             try:
-                return response.json()[dataKey]
+                result = response.json()[dataKey]
+                return result
             except Exception as e:
                 print(f"Error parsing response. Data was {response.text}")
                 break
@@ -107,7 +108,7 @@ def getStockSplits(tkr: str) -> pd.DataFrame:
 
     return df
 
-def getStockOptions(tkr: str, date: datetime.date, expireBefore: datetime.date = None, expireAfter: datetime.date = None) -> pd.DataFrame:
+def getStockOptions(tkr: str, date: str, expireBefore: str = None, expireAfter: str = None, type: str = None) -> pd.DataFrame:
 
 
     options = {
@@ -121,12 +122,46 @@ def getStockOptions(tkr: str, date: datetime.date, expireBefore: datetime.date =
     # Convert the data into a pandas DataFrame
     df = pd.DataFrame(data)
 
+    if len(df) < 1:
+        raise Exception("ERROR: Retreived 0 options")
+
     print(f"Retrieved {len(df)} options for {tkr} on {date}")
 
     df['expiration'] = pd.to_datetime(df['expiration'])
 
     if expireBefore is not None:
-        df = df[df['expiration'] < str(expireBefore)]
+        df = df[df['expiration'] < expireBefore]
     if expireAfter is not None:
-        df = df[df['expiration'] > str(expireAfter)]
+        df = df[df['expiration'] > expireAfter]
+    if type is not None:
+        df = df[df['type'] == type]
+    
     return df
+
+
+def getYieldRate(maturity = "3month", interval = "daily", yieldsBefore: str = None, yieldsAfter: str = None) -> pd.DataFrame:
+
+
+    options = {
+        "function": "TREASURY_YIELD",
+        "interval": interval,
+        "maturity": maturity
+    }
+
+    data = makeApiRquest(options)
+
+    # Convert the data into a pandas DataFrame
+    df = pd.DataFrame(data)
+
+    print(f"Retrieved {len(df)} yields for {maturity}")
+
+    df['date'] = pd.to_datetime(df['date'])
+    df.set_index('date', inplace=True)
+
+    if yieldsBefore is not None:
+        df = df[df.index < yieldsBefore]
+    if yieldsAfter is not None:
+        df = df[df.index > yieldsAfter]
+    
+    return df
+

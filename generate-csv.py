@@ -68,8 +68,11 @@ if __name__ == "__main__":
             expiration = row['expiration']
             option_type = row['type']
             contractLength = (expiration - datObj).days
-  
-            midpoint = (bid + ask) / 2.0
+            midpoint = float(row['mark'])
+
+            # skip processing extremly cheap options
+            if midpoint < .1:
+                continue
 
             time_to_expiration = (expiration - datObj).days / 365.0  # in years
             S = float(stockPrices_df.loc[str(datObj.date())].to_dict()['1. open'])  # Stock price at option purchase date
